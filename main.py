@@ -1,60 +1,38 @@
-from PyPDF2 import PdfReader
-from transformers import pipeline
-
-# Function to extract text from PDF
-def extract_text_from_pdf(pdf_path):
-    try:
-        pdf_reader = PdfReader(pdf_path)
-        text = ""
-        for page_num in range(len(pdf_reader.pages)):
-            page = pdf_reader.pages[page_num]
-            text += page.extract_text()
-        return text
-    except Exception as e:
-        print(f"Error extracting text from PDF: {e}")
-        return None
-
-# Generate questions using LAMA (question-answering pipeline)
-def generate_questions(text):
-    try:
-        nlp = pipeline("question-answering", model="microsoft/LAMA")
-        
-        # Example queries to indirectly generate questions
-        queries = [
-            "What is mentioned about...",
-            "Explain the concept of...",
-            "What are the implications of...",
-            "Describe the significance of...",
-            "How does ... affect ...",
-        ]
-        
-        questions = []
-        for query in queries:
-            result = nlp(question=query, context=text)
-            answer = result['answer'] if result['score'] > 0 else "N/A"
-            questions.append(f"{query} {answer}?")
-        
-        return questions
-    except Exception as e:
-        print(f"Error generating questions: {e}")
-        return None
-
-# Example usage
+import fitz  # PyMuPDF
+import re
+from transformers import LlamaForCausalLM, LlamaTokenizer, pipeline
+def extract_text_from_pdf(pdf_path, page_number):
+    doc = fitz.open(pdf_path)
+    page = doc.load_page(page_number - 1)  # Page numbers are 0-based in PyMuPDF
+    text = page.get_text()
+    return text
+def clean_text(text):
+    # Remove special characters and multiple spaces
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    return text
+def generate_questions(context, pipeline, num_questions=5):
+    # Prompt the model to generate questions
+    input_text = f"Generate questions based on the following context:\n\n{context}\n\nQ:"
+    results = pipeline(input_text, max_length=150, num_return_sequences=num_questions, num_beams=5)
+    
+    questions = [result['generated_text'] for result in results]
+    return questions
+def main(pdf_path, page_number):
+    print(f"Extracting text from page {page_number} of {pdf_path}...")
+    pdf_text = extract_text_from_pdf(pdf_path, page_number)
+    cleaned_text = clean_text(pdf_text)
+    print("Generating questions...")
+    questions = generate_questions(cleaned_text, llama_pipeline)
+    print("\nGenerated Questions:")
+    for i, question in enumerate(questions, 1):
+        print(f"Q{i}: {question}")
 if __name__ == "__main__":
     pdf_path = r"C:\Users\ssspr\Desktop\MCQ\MCQ-Generator\MESnotes.pdf"
+    page_number = 5
+    print("Loading model...")
+    tokenizer = LlamaTokenizer.from_pretrained('meta-llama/Llama-2-7b')
+    model = LlamaForCausalLM.from_pretrained('meta-llama/Llama-2-7b')
+    llama_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
     
-    # Extract text from PDF
-    extracted_text = extract_text_from_pdf(pdf_path)
-    
-    if extracted_text:
-        # Generate questions
-        generated_questions = generate_questions(extracted_text)
-        
-        if generated_questions:
-            # Print generated questions
-            for i, question in enumerate(generated_questions, start=1):
-                print(f"Question {i}: {question}")
-        else:
-            print("Failed to generate questions.")
-    else:
-        print("Text extraction failed. Check the PDF file path or format.")
+    main(pdf_path, page_number)
