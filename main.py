@@ -1,38 +1,34 @@
-import fitz  # PyMuPDF
-import re
-from transformers import LlamaForCausalLM, LlamaTokenizer, pipeline
-def extract_text_from_pdf(pdf_path, page_number):
-    doc = fitz.open(pdf_path)
-    page = doc.load_page(page_number - 1)  # Page numbers are 0-based in PyMuPDF
-    text = page.get_text()
+import fitz  # PyMuPDF for PDF text extraction
+from transformers import RagTokenizer, RagRetriever, RagTokenForGeneration
+def extract_text_from_pdf(pdf_path):
+    doc = fitz.open(pdf_path)  # Use the provided pdf_path parameter
+    text = ""
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        text += page.get_text()
     return text
-def clean_text(text):
-    # Remove special characters and multiple spaces
-    text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'[^\w\s]', '', text)
-    return text
-def generate_questions(context, pipeline, num_questions=5):
-    # Prompt the model to generate questions
-    input_text = f"Generate questions based on the following context:\n\n{context}\n\nQ:"
-    results = pipeline(input_text, max_length=150, num_return_sequences=num_questions, num_beams=5)
-    
-    questions = [result['generated_text'] for result in results]
-    return questions
-def main(pdf_path, page_number):
-    print(f"Extracting text from page {page_number} of {pdf_path}...")
-    pdf_text = extract_text_from_pdf(pdf_path, page_number)
-    cleaned_text = clean_text(pdf_text)
-    print("Generating questions...")
-    questions = generate_questions(cleaned_text, llama_pipeline)
+def rag_pipeline(input_text):
+    # Initialize RAG components
+    tokenizer = RagTokenizer.from_pretrained('facebook/rag-token-nq')
+    retriever = RagRetriever.from_pretrained('facebook/rag-token-nq')
+    model = RagTokenForGeneration.from_pretrained('facebook/rag-token-nq')
+    # Retrieve relevant passages based on input_text
+    retrieved_passages = retriever(input_text)
+    # Augment input_text with retrieved passages
+    augmented_input = f"{input_text} {retrieved_passages['text']}"
+    # Generate questions based on augmented input
+    inputs = tokenizer(augmented_input, return_tensors="pt")
+    generated_questions = model.generate(inputs['input_ids'])
+    # Decode and print generated questions
     print("\nGenerated Questions:")
-    for i, question in enumerate(questions, 1):
+    for i, generated_question in enumerate(generated_questions, 1):
+        question = tokenizer.decode(generated_question, skip_special_tokens=True)
         print(f"Q{i}: {question}")
+# Main function
 if __name__ == "__main__":
-    pdf_path = r"C:\Users\ssspr\Desktop\MCQ\MCQ-Generator\MESnotes.pdf"
-    page_number = 5
-    print("Loading model...")
-    tokenizer = LlamaTokenizer.from_pretrained('meta-llama/Llama-2-7b')
-    model = LlamaForCausalLM.from_pretrained('meta-llama/Llama-2-7b')
-    llama_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
-    
-    main(pdf_path, page_number)
+    pdf_path = r"C:\Users\ssspr\Desktop\MCQ\MCQ-Generator\MESnotes.pdf"  # Replace with your PDF file path
+    print(f"Extracting text from {pdf_path}...")
+    input_text = extract_text_from_pdf(pdf_path)
+    # Run RAG pipeline on extracted text
+    print("Running RAG pipeline...")
+    rag_pipeline(input_text)
