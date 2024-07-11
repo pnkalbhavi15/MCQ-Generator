@@ -1,3 +1,4 @@
+#generates 1 mcq from sentence
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import gradio as gr
 import spacy
