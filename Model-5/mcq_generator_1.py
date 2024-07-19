@@ -31,11 +31,10 @@ huggingfacehub_api_token = HUGGING_FACE_API_TOKEN
 model = HuggingFaceHub(
     huggingfacehub_api_token=huggingfacehub_api_token,
     repo_id="mistralai/Mistral-7B-Instruct-v0.1",
-    model_kwargs={"temperature": 0.5, "max_length": 500}
+    model_kwargs={"temperature": 0.5, "max_length": 1000}
 )
 
 def process_pdf(pdf_path):
-    # Loading PDF
     loader = PyPDFLoader(pdf_path, extract_images=True)
     pages = loader.load()
     
@@ -64,39 +63,42 @@ def generate_mcqs(text_chunk, num_questions):
         f"Generate {num_questions} multiple-choice questions from the following text:\n\n"
         f"{text_chunk}\n\n"
         "Format the question and options like this:\n"
+
         "Question: <question text>\n"
         "a) <option 1>\n"
         "b) <option 2>\n"
         "c) <option 3>\n"
         "d) <option 4>\n"
+        "Answer: <correct option>\n\n"
+
         "\nQuestions:"
     )
     response = model(prompt)
     print("Raw response from the model:", response)
     
-    # Extract only the questions and options part from the response
     response_text = response.split("Questions:")[-1]
     print("Response Text:", response_text)
     questions = response_text.split("\n\n")
     formatted_questions = []
     for question in questions[1:]:
-        if all(opt in question for opt in ['a)', 'b)', 'c)', 'd)']):
+        if all(opt in question for opt in ['a)', 'b)', 'c)', 'd)', 'Answer:']):
+            question = question.split("2. ")[0]
             formatted_questions.append(question[2:].strip())
     
     return formatted_questions
 
 def get_mcqs_from_docs(docs, num_questions):
     all_mcqs = []
-    for doc in docs:
-        print(f"Processing document chunk: {doc.page_content[:100]}...")  # Debug: Show a snippet of the chunk
+    random.shuffle(docs)
+    i = 0
+    while i < len(docs) and len(all_mcqs) < num_questions:
+        doc = docs[i]
+        print(f"Processing document chunk: {doc.page_content[:100]}...")  
         mcqs = generate_mcqs(doc.page_content, num_questions)
         print(f"Generated {len(mcqs)} MCQs from a chunk")
         all_mcqs.extend(mcqs)
-    
-    # Shuffle the questions randomly
+        i += 1
     random.shuffle(all_mcqs)
-    
-    # Return the requested number of questions, or all generated questions if fewer than requested
     return all_mcqs[:num_questions]
 
 def generate_mcqs_interface_pdf(pdf_path, num_questions):
@@ -104,7 +106,7 @@ def generate_mcqs_interface_pdf(pdf_path, num_questions):
     mcqs = get_mcqs_from_docs(docs, num_questions)
     output = ""
     for i, mcq in enumerate(mcqs):
-        output += "Question " + str(i) + ": " + mcq + "\n\n"
+        output += "Question " + str(i + 1) + ": " + mcq + "\n\n"
     return output
 
 def generate_mcqs_interface_text(text, num_questions):
