@@ -110,28 +110,17 @@ def generate_mcqs(text_chunk, num_questions):
             formatted_questions.append(question[2:].strip())
     return formatted_questions
 
-def get_mcqs_from_docs_for_pdf(docs, num_questions):
+def get_mcqs_from_docs(docs, num_questions, pdf_input):
     all_mcqs = []
     random.shuffle(docs)
     i = 0
     while i < len(docs) and len(all_mcqs) < num_questions:
         doc = docs[i]
         # print(f"Processing document chunk: {doc.page_content[:100]}...")  
-        mcqs = generate_mcqs(doc.page_content, num_questions)
-        print(f"Generated {len(mcqs)} MCQs from a chunk")
-        all_mcqs.extend(mcqs)
-        i += 1
-    random.shuffle(all_mcqs)
-    return all_mcqs[:num_questions]
-
-def get_mcqs_from_docs_for_text(docs, num_questions):
-    all_mcqs = []
-    random.shuffle(docs)
-    i = 0
-    while i < len(docs) and len(all_mcqs) < num_questions:
-        doc = docs[i]
-        # print(f"Processing document chunk: {doc.page_content[:100]}...")  
-        mcqs = generate_mcqs(doc['page_content'], num_questions)
+        if pdf_input:
+            mcqs = generate_mcqs(doc.page_content, num_questions)
+        else:
+            mcqs = generate_mcqs(doc['page_content'], num_questions)
         print(f"Generated {len(mcqs)} MCQs from a chunk")
         all_mcqs.extend(mcqs)
         i += 1
@@ -142,7 +131,7 @@ def generate_mcqs_interface_pdf(pdf_path, num_questions):
     if num_questions <= 0:
         return "Number of questions must be a positive integer."
     docs, _ = process_pdf(pdf_path)
-    mcqs = get_mcqs_from_docs_for_pdf(docs, num_questions)
+    mcqs = get_mcqs_from_docs(docs, num_questions, True)
     output = ""
     for i, mcq in enumerate(mcqs):
         output += "Question " + str(i + 1) + ": " + mcq + "\n\n"
@@ -152,7 +141,7 @@ def generate_mcqs_interface_text(text, num_questions):
     if num_questions <= 0:
         return "Number of questions must be a positive integer."
     docs, _ = process_text(text)
-    mcqs = get_mcqs_from_docs_for_text(docs, num_questions)
+    mcqs = get_mcqs_from_docs(docs, num_questions, False)
     output = ""
     for i, mcq in enumerate(mcqs):
         output += "Question " + str(i + 1) + ": " + mcq + "\n\n"
