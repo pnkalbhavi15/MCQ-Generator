@@ -35,27 +35,42 @@ model = HuggingFaceHub(
 )
 
 def process_pdf(pdf_path):
-    loader = PyPDFLoader(pdf_path, extract_images=True)
-    pages = loader.load()
+    try: 
+        loader = PyPDFLoader(pdf_path, extract_images=True)
+        pages = loader.load()
+        
+        # Splitting text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=20)
+        docs = text_splitter.split_documents(pages)
+
+        # print("No of chunks = ", len(docs))
+        
+        # Creating a vector database
+        vector_db = Weaviate.from_documents(docs, embeddings, client=client, by_text=False)
+        
+        return docs, vector_db
     
-    # Splitting text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=20)
-    docs = text_splitter.split_documents(pages)
-    
-    # Creating a vector database
-    vector_db = Weaviate.from_documents(docs, embeddings, client=client, by_text=False)
-    
-    return docs, vector_db
+    except Exception as e:
+        print(f"Error processing PDF: {e}")
+        return [], None
 
 def process_text(text):
-    # Splitting text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=20)
-    docs = text_splitter.split_text(text)
-    
-    # Creating a vector database
-    vector_db = Weaviate.from_texts(docs, embeddings, client=client)
-    
-    return docs, vector_db
+    try: 
+        # Splitting text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=20)
+        text_chunks = text_splitter.split_text(text)
+        
+        # Creating document-like objects for consistency with PDF processing
+        docs = [{'page_content': chunk} for chunk in text_chunks]
+        
+        # Creating a vector database
+        vector_db = Weaviate.from_texts(text_chunks, embeddings, client=client)
+        
+        return docs, vector_db
+
+    except Exception as e:
+        print(f"Error processing text: {e}")
+        return [], None
 
 # Function to generate MCQs using the model
 def generate_mcqs(text_chunk, num_questions):
@@ -74,26 +89,34 @@ def generate_mcqs(text_chunk, num_questions):
         "\nQuestions:"
     )
     response = model(prompt)
-    print("Raw response from the model:", response)
+    # print("Raw response from the model:", response)
     
     response_text = response.split("Questions:")[-1]
-    print("Response Text:", response_text)
+    # print("Response Text:", response_text)
+    start_index = response_text.find("1.")
+    response_text = response_text[start_index: ]
     questions = response_text.split("\n\n")
     formatted_questions = []
-    for question in questions[1:]:
-        if all(opt in question for opt in ['a)', 'b)', 'c)', 'd)', 'Answer:']):
-            question = question.split("2. ")[0]
+    for question in questions:
+        answer_index = question.find("Answer: ")
+        question = question[:answer_index + 10]
+        if len(question) == answer_index + 9:
+            question += ")"
+        if len(question) == answer_index + 10  and all(opt in question for opt in ['a)', 'b)', 'c)', 'd)', 'Answer:']):
+            if "1." in question:
+                question = question.split("2. ")[0]
+            elif "2." in question:
+                question = question.split("3. ")[0]
             formatted_questions.append(question[2:].strip())
-    
     return formatted_questions
 
-def get_mcqs_from_docs(docs, num_questions):
+def get_mcqs_from_docs_for_pdf(docs, num_questions):
     all_mcqs = []
     random.shuffle(docs)
     i = 0
     while i < len(docs) and len(all_mcqs) < num_questions:
         doc = docs[i]
-        print(f"Processing document chunk: {doc.page_content[:100]}...")  
+        # print(f"Processing document chunk: {doc.page_content[:100]}...")  
         mcqs = generate_mcqs(doc.page_content, num_questions)
         print(f"Generated {len(mcqs)} MCQs from a chunk")
         all_mcqs.extend(mcqs)
@@ -101,17 +124,35 @@ def get_mcqs_from_docs(docs, num_questions):
     random.shuffle(all_mcqs)
     return all_mcqs[:num_questions]
 
+def get_mcqs_from_docs_for_text(docs, num_questions):
+    all_mcqs = []
+    random.shuffle(docs)
+    i = 0
+    while i < len(docs) and len(all_mcqs) < num_questions:
+        doc = docs[i]
+        # print(f"Processing document chunk: {doc.page_content[:100]}...")  
+        mcqs = generate_mcqs(doc['page_content'], num_questions)
+        print(f"Generated {len(mcqs)} MCQs from a chunk")
+        all_mcqs.extend(mcqs)
+        i += 1
+    random.shuffle(all_mcqs)
+    return all_mcqs[:num_questions]
+
 def generate_mcqs_interface_pdf(pdf_path, num_questions):
+    if num_questions <= 0:
+        return "Number of questions must be a positive integer."
     docs, _ = process_pdf(pdf_path)
-    mcqs = get_mcqs_from_docs(docs, num_questions)
+    mcqs = get_mcqs_from_docs_for_pdf(docs, num_questions)
     output = ""
     for i, mcq in enumerate(mcqs):
         output += "Question " + str(i + 1) + ": " + mcq + "\n\n"
     return output
 
 def generate_mcqs_interface_text(text, num_questions):
+    if num_questions <= 0:
+        return "Number of questions must be a positive integer."
     docs, _ = process_text(text)
-    mcqs = get_mcqs_from_docs(docs, num_questions)
+    mcqs = get_mcqs_from_docs_for_text(docs, num_questions)
     output = ""
     for i, mcq in enumerate(mcqs):
         output += "Question " + str(i + 1) + ": " + mcq + "\n\n"
@@ -119,7 +160,7 @@ def generate_mcqs_interface_text(text, num_questions):
 
 # Gradio app
 with gr.Blocks() as iface:
-    gr.Markdown("# MCQ Generator from Text or PDF")
+    gr.Markdown("# MCQ Generator")
     with gr.Tabs():
         with gr.TabItem("Upload PDF"):
             pdf_input = gr.File(label="Upload PDF", type="filepath")
