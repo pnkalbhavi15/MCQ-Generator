@@ -12,7 +12,7 @@ from langchain import HuggingFaceHub
 from secret import WEAVIATE_CLUSTER, WEAVIATE_API_KEY, HUGGING_FACE_API_TOKEN
 
 # Setting encoding
-locale.getpreferredencoding = lambda: "UTF-8"
+locale.getpreferredencoding()
 
 # Initializing Weaviate client
 client = weaviate.Client(
@@ -178,7 +178,7 @@ with gr.Blocks() as iface:
             pdf_inputs = [gr.File(label=f"Upload PDF {i+1}", type="filepath") for i in range(3)]
             total_pages_texts = [gr.Textbox(label=f"Total Pages of PDF {i+1}", interactive=False) for i in range(3)]
             page_ranges_inputs = [gr.Textbox(label=f"Page Ranges of PDF {i+1}", placeholder="Enter page ranges") for i in range(3)]
-            display_chunks_button = gr.Button("Display Chunks for Selection")
+            display_chunks_button = gr.Button("Display Chunks for Filtering")
             chunk_selection = gr.CheckboxGroup(label="Select Chunks to Remove", visible = True)
             num_questions_pdf = gr.Number(label="Number of Questions", value=5, precision=0)
             generate_button = gr.Button("Generate MCQs")
