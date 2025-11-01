@@ -1,6 +1,6 @@
 streamlit
 weaviate-client
-langchain
+langchain==0.1.16
 PyPDF2
 sentence-transformers
 fpdf
