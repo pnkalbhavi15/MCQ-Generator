@@ -15,10 +15,14 @@ from langchain import HuggingFaceHub
 from fpdf import FPDF
 from docx import Document as DocxDocument
 from io import BytesIO
-from secret import WEAVIATE_CLUSTER, WEAVIATE_API_KEY, HUGGING_FACE_API_TOKEN
+import streamlit as st
 
 # Setting encoding
 locale.getpreferredencoding()
+
+WEAVIATE_CLUSTER = st.secrets["WEAVIATE_CLUSTER"]
+WEAVIATE_API_KEY = st.secrets["WEAVIATE_API_KEY"]
+HUGGING_FACE_API_TOKEN = st.secrets["HUGGING_FACE_API_TOKEN"]
 
 # Initializing Weaviate client
 client = weaviate.Client(
