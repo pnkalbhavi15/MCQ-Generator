@@ -1,0 +1,12 @@
+streamlit
+weaviate-client
+langchain
+PyPDF2
+sentence-transformers
+fpdf
+python-docx
+huggingface_hub
+torch
+transformers
+numpy
+tqdm
